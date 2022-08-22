@@ -7,8 +7,17 @@
 #
 # 适用的软件版本：
 #	nginx:  nginx-1.22.0.tar.gz
-#       mysql:  mysql-boost-5.7.39.tar.gz(推荐) | mysql-5.7.39.tar.gz| mysql-5.7.39-linux-glibc2.12-x86_64
+#   mysql:  mysql-boost-5.7.39.tar.gz(推荐) | mysql-5.7.39.tar.gz| mysql-5.7.39-linux-glibc2.12-x86_64
 #	php:    php-7.4.30.tar.gz
+#	
+#	说明：
+#		1、本脚本经过测试，完全适用于以上三个版本的自动安装使用。
+#		2、如果想尝试其版本的自动化安装，也可以试试。
+#	
+#	使用说明：
+#		1、NGINX_TAG,为是否开启安装功能的开关，如果为ON，则为开启的意思。
+#		2、MYSQL_pkg,是mysql源码包位置的绝对路径。
+#		3、所以若要实现LNMP环境的安装，只需要同时将三个软件的安装功能都开启即可。
 ########################################
 set -u
 #set -e
@@ -18,7 +27,7 @@ MYSQL_TAG=OFF
 PHP_TAG=OFF
 
 
-NGINX_pkg=								#nginx的源码包包位置，绝对路径
+NGINX_pkg=						#nginx的源码包包位置，绝对路径
 MYSQL_pkg=								#mysql的源码包位置，绝对路径
 PHP_pkg=							   #php源码包位置
 
@@ -30,8 +39,7 @@ NGINX_configure="--prefix=$NGINX_basedir  --user=$NGINX_user --group=$NGINX_user
 
 MYSQL_user=mysql						#运行软件的用户
 MYSQL_basedir=/usr/local/mysql			#mysql的安装位置
-MYSQL_cmake=". \							
--DCMAKE_INSTALL_PREFIX=$MYSQL_basedir \
+MYSQL_cmake=" -DCMAKE_INSTALL_PREFIX=$MYSQL_basedir \
 -DMYSQL_DATADIR=$MYSQL_basedir/data \
 -DMYSQ_TCP_PORT=3306 \
 -DMYSQL_UNIX_ADDR=$MYSQL_basedir/mysql.sock \
@@ -58,9 +66,9 @@ PHP_configure="--prefix=$PHP_basedir --with-config-file-path=$PHP_basedir/etc/ \
 --with-mysqli=$MYSQL_basedir/bin/mysql_config --with-iconv-dir \
 --enable-mbstring=all   --with-zlib  --with-libzip --with-curl \
 --enable-sockets   --enable-xml --enable-sysvsem   --enable-bcmath  \
---with-pdo-mysql=$MYSQL_basedir   --with-fpm-group=$user  \
+--with-pdo-mysql=$MYSQL_basedir   --with-fpm-group=$PHP_user  \
 --with-gd --without-pear    --with-gettext --enable-soap \
---enable-fpm  --with-fpm-user=$user   --with-openssl --with-mhash \
+--enable-fpm  --with-fpm-user=$PHP_user   --with-openssl --with-mhash \
 --enable-ftp --enable-maintainer-zts  --with-xmlrpc  --enable-pcntl \
 --enable-inline-optimization  --enable-shmop --enable-mbregex 
 "
@@ -149,7 +157,7 @@ function nginx_main {
 	install_pkg  $(tar_xf $pkg $user )  $configure
 }
 
-[ "$NGINX_TAG" == "ON"  ] && nginx_man
+[ "$NGINX_TAG" == "ON"  ] && nginx_main
 
 #######################Mysql ###########################
 function init_mysql {    #mysql初始化
@@ -194,7 +202,7 @@ function install_mysql {
 #	参数：
 #		$1: 软件包的绝对路径
 #		$2: 运行软件的用户名
-#		$3: cmake配置
+#		$*: cmake配置
 yum -y install bison   ncurses-devel cmake libaio-devel 	#安装依赖
 
 dd if=/dev/zero of=/swapfile bs=1M count=2048       	#创建交换分区
@@ -204,6 +212,9 @@ swapon /swapfile
 
 local pkg=$1
 local user=$2
+shift
+shift
+local cmake=$*
 tar_xf $pkg $user
 
 local pkgdir=$( tar_xf $pkg $user )
@@ -214,8 +225,7 @@ if [[ "$pkgdir" =~ 注意  ]];then
 fi
 
 cd $pkgdir
-
-cmake $3
+cmake $cmake
 
 if [ "$?" -eq 0 ];then
 	install_pkg  $pkgdir null		#进入到软件包目录
@@ -280,13 +290,13 @@ function install_php {
 #  参数：
 #	$1:  软件包绝对路径
 #	$2： 运行软件的用户
-#	$3:	 编译配置
+#	$*:	 编译配置
    local pkg=$1
    local user=$2
-
+   shift
+   shift
+   local configure=$*
 yum -y install libxml2-devel libjpeg-devel libpng-devel freetype-devel curl-devel openssl-devel sqlite-devel oniguruma oniguruma-devel
-
-local configure=$3
 install_pkg $(tar_xf  $pkg $user ) $configure
 
 }
