@@ -25,12 +25,12 @@ set -u
 NGINX_TAG=OFF					#是否开启安装功能，ON为开启，OFF为不开启
 MYSQL_TAG=OFF
 PHP_TAG=OFF
-
+Apache_TAG=ON
 
 NGINX_pkg=						#nginx的源码包包位置，绝对路径
 MYSQL_pkg=								#mysql的源码包位置，绝对路径
 PHP_pkg=							   #php源码包位置
-
+Apache_pkg=/root/httpd-2.4.54.tar.gz						#apache源码包
 
 ##############################   软件安装配置     #############################################
 NGINX_user=www							#运行软件的用户
@@ -71,6 +71,20 @@ PHP_configure="--prefix=$PHP_basedir --with-config-file-path=$PHP_basedir/etc/ \
 --enable-fpm  --with-fpm-user=$PHP_user   --with-openssl --with-mhash \
 --enable-ftp --enable-maintainer-zts  --with-xmlrpc  --enable-pcntl \
 --enable-inline-optimization  --enable-shmop --enable-mbregex 
+"
+
+Apache_user=httpd
+Apache_basedir=/usr/local/apache2
+Apache_configure="--prefix=$Apache_basedir \
+--enable-modules=all \
+--enable-mods-shared=all \
+--enable-so \
+--enable-rewrite \
+--with-pcre \
+--enable-ssl \
+--with-mpm=prefork \
+--with-apr=/usr/bin/apr-1-config \
+--with-apr-util=/usr/bin/apu-1-config
 "
 
 ####################################################################################3
@@ -206,7 +220,6 @@ function install_mysql {
 yum -y install bison   ncurses-devel cmake libaio-devel 	#安装依赖
 
 dd if=/dev/zero of=/swapfile bs=1M count=2048       	#创建交换分区
-mkswap /swapfile 
 swapon /swapfile
 
 
@@ -291,13 +304,14 @@ function install_php {
 #	$1:  软件包绝对路径
 #	$2： 运行软件的用户
 #	$*:	 编译配置
+yum -y install libxml2-devel libjpeg-devel libpng-devel freetype-devel curl-devel openssl-devel sqlite-devel oniguruma oniguruma-devel
+
    local pkg=$1
    local user=$2
    shift
    shift
    local configure=$*
-yum -y install libxml2-devel libjpeg-devel libpng-devel freetype-devel curl-devel openssl-devel sqlite-devel oniguruma oniguruma-devel
-install_pkg $(tar_xf  $pkg $user ) $configure
+   install_pkg $(tar_xf  $pkg $user ) $configure
 
 }
 
@@ -312,4 +326,31 @@ function php_main {
 }
 
 [ "$PHP_TAG" == "ON"  ] && php_main
-##################################################
+
+#####################  apache   #########################
+function install_httpd {
+#	参数
+#		$1:	源码包的绝对路径
+#		$2: 用户
+#		$*: 配置参数
+
+	yum install -y apr-util-devel-1.5.2-6.el7.x86_64  apr-devel-1.4.8-7.el7.x86_64 #安装依赖
+	
+	local pkg=$1
+	local user=$2
+	shift
+	shift
+	local configure=$*
+
+	install_pkg $( tar_xf $pkg  $user ) $configure	
+}
+
+function apache_main {
+	local pkg=$Apache_pkg
+	local user=$Apache_user
+	local basedir=$Apache_basedir
+	local configure=$Apache_configure
+	install_httpd  $pkg $user  $configure
+}
+
+[ "$Apache_TAG" == "ON"  ] && apache_main
