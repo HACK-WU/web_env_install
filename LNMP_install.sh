@@ -25,7 +25,7 @@ set -u
 NGINX_TAG=OFF					#是否开启安装功能，ON为开启，OFF为不开启
 MYSQL_TAG=OFF
 PHP_TAG=OFF
-Apache_TAG=ON
+Apache_TAG=OFF
 
 NGINX_pkg=						#nginx的源码包包位置，绝对路径
 MYSQL_pkg=								#mysql的源码包位置，绝对路径
@@ -88,8 +88,8 @@ Apache_configure="--prefix=$Apache_basedir \
 "
 
 ####################################################################################3
- yum install -y epel-release.noarch
- yum install -y  openssl-devel  gcc gcc-c++		#安装编译工具
+# yum install -y epel-release.noarch
+# yum install -y  openssl-devel  gcc gcc-c++		#安装编译工具
 
 
 function tar_xf {    
@@ -328,6 +328,44 @@ function php_main {
 [ "$PHP_TAG" == "ON"  ] && php_main
 
 #####################  apache   #########################
+function init_httpd {
+	local basedir=$1	
+echo "#!/usr/bin/bash
+. /etc/init.d/functions
+EXEC=$1/bin/apachectl
+case \$1 in
+start)  bash \$EXEC    \$1  ;;
+stop)  bash \$EXEC -k   \$1  ;;
+restart)  bash \$EXEC  -k   \$1  ;;
+status) systemctl status httpd ;;
+* )
+    echo 'please enter start|stop|restart|status' ;;
+esac
+" > /etc/init.d/httpd
+chmod a+x /etc/init.d/httpd
+
+sed -i  "/#ServerName www.example.com/ c ServerName localhost:80" $basedir/conf/httpd.conf
+
+local basedir=$basedir/conf/httpd.conf
+cp $basedir{,.bak}	#文件备份
+str='LoadModule negotiation_module modules\/mod_negotiation.so'
+sed  -i  "/$str/ c $str" $basedir
+
+str='Include conf\/extra\/httpd-languages.conf'
+sed  -i  "/$str/ c $str" $basedir
+str='LoadModule php7_module modules\/libphp7.so'
+sed -i "166 a  $str " $basedir
+str='#AddType application\/x-gzip'
+str1="    AddType text\/html .php"
+sed -i "/$str/ a $str1 " $basedir
+str1="    AddHandler php7-script php"
+sed -i "/$str/ a $str1 " $basedir
+
+str="DirectoryIndex index.html"
+str1="DirectoryIndex index.php index.html"
+sed -i "/$str/ c  $str1" $basedir
+}
+
 function install_httpd {
 #	参数
 #		$1:	源码包的绝对路径
@@ -351,6 +389,8 @@ function apache_main {
 	local basedir=$Apache_basedir
 	local configure=$Apache_configure
 	install_httpd  $pkg $user  $configure
+	init_httpd  $basedir
 }
 
 [ "$Apache_TAG" == "ON"  ] && apache_main
+
