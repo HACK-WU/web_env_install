@@ -9,7 +9,7 @@
 # 适用的软件版本：
 #	nginx:  nginx-1.22.0.tar.gz
 #	apache:	httpd-2.4.54.tar.gz
-#   mysql:  mysql-boost-5.7.39.tar.gz(推荐) | mysql-5.7.39.tar.gz| mysql-5.7.39-linux-glibc2.12-x86_64
+#   	mysql:  mysql-5.7.39.tar.gz | mysql-boost-5.7.39.tar.gz 
 #	php:    php-7.4.30.tar.gz
 #	
 #	说明：
@@ -25,11 +25,10 @@
 #		6、此脚本安装完成PHP后，会自动修改NGINX或者Apache的配置文件，使其能够解析PHP文件，无需手动更改。
 #		7、此脚本会自动配置mysql,apache,php的启动脚本
 #			service httpd   start		启动httpd
-#			service mysqld  start       启动mysqld
+#			service mysqld  start           启动mysqld
 #			service php-fpm start		启动php
 ###########################################################################################################
 set -u
-#set -e
 
 NGINX_TAG=ON					#是否开启安装功能，ON为开启，OFF为不开启
 Apache_TAG=OFF
