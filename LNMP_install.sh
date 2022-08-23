@@ -9,7 +9,7 @@
 # 适用的软件版本：
 #	nginx:  nginx-1.22.0.tar.gz
 #	apache:	httpd-2.4.54.tar.gz
-#   mysql:  mysql-boost-5.7.39.tar.gz(推荐) | mysql-5.7.39.tar.gz| mysql-5.7.39-linux-glibc2.12-x86_64
+#   mysql:  mysql-5.7.39.tar.gz | mysql-boost-5.7.39.tar.gz
 #	php:    php-7.4.30.tar.gz
 #	
 #	说明：
@@ -156,7 +156,9 @@ function install_pkg {
 		fi		
 	fi
 		
-	dd if=/dev/zero of=/swapfile bs=1M count=2048       	#创建交换分区
+	dd if=/dev/zero of=/swapfile bs=1M count=2048      	#创建交换分区
+	chmod 600 /swapfile
+	mkswap /swapfile
 	swapon /swapfile
 
 	make -j4 && make install		
@@ -199,7 +201,7 @@ function init_mysql {    #mysql初始化
 #	yum install libaio 
 	local prefix=$1			#安装目录
 	local user=$2			#用户
-	
+    tmpfile=/tmp/mysql_passwd
 	useradd -r -s /sbin/nologin $user
 
 	cd $prefix
@@ -208,7 +210,8 @@ function init_mysql {    #mysql初始化
 	chown   $user:$user mysql-files
 	chmod 750 mysql-files
 	chown -R  $user:$user $prefix	
-	bin/mysqld --initialize --user=$user  --basedir=$prefix
+	bin/mysqld --initialize --user=$user  --basedir=$prefix &> $tmpfile
+	cat /tmp/mysql_passwd
 	if [ "$?" -ne 0  ];then
 		echo -e  "\033[31m数据库初始化失败\033[0m"
 		exit 0
@@ -222,7 +225,15 @@ function init_mysql {    #mysql初始化
 	service mysqld start
 	if [  "$?" -eq 0  ];then
 		
-		 echo "数据库启动成功！！" 
+		 echo "数据库安装成功！！!" >> $tmpfile
+		 echo "若此密码无法的登录数据库，可以先跳过授权表：
+				source /etc/profile
+				service mysqld start --user=root --skip-grant-tables
+				mysql
+			
+				就可以登录，登录之后，更改mysql.user表改密码。" >> $tmpfile
+ 
+		 service mysqld stop
 		 echo "export PATH=$PATH:$prefix/bin" >> /etc/profile
 		 echo -e  "\033[33m请执行source /etc/profile 命令\033[0m"
 	else
@@ -306,7 +317,7 @@ function conf_nginx {
 echo "<?php
 		phpinfo();
 ?>
-" > $conf/html/index.php
+" > $1/html/index.php
 
 }
 
@@ -404,4 +415,4 @@ function apache_main {
 }
 
 [ "$Apache_TAG" == "ON"  ] && apache_main
-
+[ "$MYSQL_TAG" == "ON" ] && cat $tmpfile
