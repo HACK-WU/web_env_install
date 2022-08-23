@@ -1,41 +1,46 @@
 #!/bin/bash
-########################################
-# Author:hackwu
+###########################################################################################################
+# Author:hackwu.
+# email:2013743179@qq.com
 # time:2022年08月21日 星期日 18时09分38秒
 # filename:LNMP_install.sh
 # Script description:
 #
 # 适用的软件版本：
 #	nginx:  nginx-1.22.0.tar.gz
+#	apache:	httpd-2.4.54.tar.gz
 #   mysql:  mysql-boost-5.7.39.tar.gz(推荐) | mysql-5.7.39.tar.gz| mysql-5.7.39-linux-glibc2.12-x86_64
 #	php:    php-7.4.30.tar.gz
 #	
 #	说明：
-#		1、本脚本经过测试，完全适用于以上三个版本的自动安装使用。
+#		1、本脚本经过测试，完全适用于以上四个版本的自动安装使用。
 #		2、如果想尝试其版本的自动化安装，也可以试试。
 #	
 #	使用说明：
 #		1、NGINX_TAG,为是否开启安装功能的开关，如果为ON，则为开启的意思。
 #		2、MYSQL_pkg,是mysql源码包位置的绝对路径。
 #		3、所以若要实现LNMP环境的安装，只需要同时将三个软件的安装功能都开启即可。
-########################################
+#		4、本脚本也支持实现LAMP的环境安装，只需要设置Apache_TAG=ON即可。
+#		5、配置好源码包的绝对路径和开启对应软件的安装选项后，直接运行此脚本即可。
+###########################################################################################################
 set -u
 #set -e
 
-NGINX_TAG=OFF					#是否开启安装功能，ON为开启，OFF为不开启
-MYSQL_TAG=OFF
-PHP_TAG=OFF
+NGINX_TAG=ON					#是否开启安装功能，ON为开启，OFF为不开启
 Apache_TAG=OFF
+MYSQL_TAG=ON
+PHP_TAG=ON
 
-NGINX_pkg=						#nginx的源码包包位置，绝对路径
-MYSQL_pkg=								#mysql的源码包位置，绝对路径
-PHP_pkg=							   #php源码包位置
-Apache_pkg=/root/httpd-2.4.54.tar.gz						#apache源码包
+NGINX_pkg=/root/nginx-1.22.0.tar.gz						#nginx的源码包包位置，绝对路径
+Apache_pkg=												#apache源码包
+MYSQL_pkg=/root/mysql-boost-5.7.39.tar.gz				#mysql的源码包位置，绝对路径
+PHP_pkg=/root/php-7.4.30.tar.gz							#php源码包位置
 
 ##############################   软件安装配置     #############################################
 NGINX_user=www							#运行软件的用户
 NGINX_basedir=/usr/local/nginx
-NGINX_configure="--prefix=$NGINX_basedir  --user=$NGINX_user --group=$NGINX_user --with-http_stub_status_module --with-http_ssl_module"
+NGINX_configure="--prefix=$NGINX_basedir  --user=$NGINX_user --group=$NGINX_user \
+--with-http_stub_status_module --with-http_ssl_module"
 
 MYSQL_user=mysql						#运行软件的用户
 MYSQL_basedir=/usr/local/mysql			#mysql的安装位置
@@ -57,22 +62,6 @@ MYSQL_cmake=" -DCMAKE_INSTALL_PREFIX=$MYSQL_basedir \
 -DDOWNLOAD_BOOST=1
 "
  
-PHP_user=www						   #运行软件的用户
-PHP_basedir=/usr/local/php			   #软件安装位置
-PHP_configure="--prefix=$PHP_basedir --with-config-file-path=$PHP_basedir/etc/ \
---with-libxml-dir  \
---with-jpeg-dir  --with-png-dir  \
---with-freetype-dir=/usr/local/freetype/  \
---with-mysqli=$MYSQL_basedir/bin/mysql_config --with-iconv-dir \
---enable-mbstring=all   --with-zlib  --with-libzip --with-curl \
---enable-sockets   --enable-xml --enable-sysvsem   --enable-bcmath  \
---with-pdo-mysql=$MYSQL_basedir   --with-fpm-group=$PHP_user  \
---with-gd --without-pear    --with-gettext --enable-soap \
---enable-fpm  --with-fpm-user=$PHP_user   --with-openssl --with-mhash \
---enable-ftp --enable-maintainer-zts  --with-xmlrpc  --enable-pcntl \
---enable-inline-optimization  --enable-shmop --enable-mbregex 
-"
-
 Apache_user=httpd
 Apache_basedir=/usr/local/apache2
 Apache_configure="--prefix=$Apache_basedir \
@@ -86,10 +75,26 @@ Apache_configure="--prefix=$Apache_basedir \
 --with-apr=/usr/bin/apr-1-config \
 --with-apr-util=/usr/bin/apu-1-config
 "
+PHP_user=www						   #运行软件的用户
+PHP_basedir=/usr/local/php			   #软件安装位置:
+PHP_apache_conf=" --with-apxs2=$Apache_basedir/bin/apxs --enable-opcache"
+PHP_configure="--prefix=$PHP_basedir --with-config-file-path=$PHP_basedir/etc/ \
+--with-libxml-dir  --with-jpeg-dir  --with-png-dir  \
+--with-freetype-dir=/usr/local/freetype/  \
+--with-mysqli=$MYSQL_basedir/bin/mysql_config --with-iconv-dir \
+--enable-mbstring=all   --with-zlib  --with-libzip --with-curl \
+--enable-sockets   --enable-xml --enable-sysvsem   --enable-bcmath  \
+--with-pdo-mysql=$MYSQL_basedir   --with-fpm-group=$PHP_user  \
+--with-gd --without-pear    --with-gettext --enable-soap \
+--enable-fpm  --with-fpm-user=$PHP_user   --with-openssl --with-mhash \
+--enable-ftp --enable-maintainer-zts  --with-xmlrpc  --enable-pcntl \
+--enable-inline-optimization  --enable-shmop --enable-mbregex  
+"
+[ "$Apache_TAG" == "ON"  ]&& $PHP_configure="$PHP_configure $PHP_apache_conf"
 
 ####################################################################################3
-# yum install -y epel-release.noarch
-# yum install -y  openssl-devel  gcc gcc-c++		#安装编译工具
+ yum install -y epel-release.noarch
+ yum install -y  openssl-devel  gcc gcc-c++		#安装编译工具
 
 
 function tar_xf {    
@@ -145,9 +150,15 @@ function install_pkg {
 			exit 1	
 		fi		
 	fi
+		
+	dd if=/dev/zero of=/swapfile bs=1M count=2048       	#创建交换分区
+	swapon /swapfile
 
 	make -j4 && make install		
 	if [ "$?" -eq 0 ];then
+		swapoff /swapfile			#删除交换分区  
+		rm -f /swapfile
+		
 		echo
 		echo "安装成功！"
 		echo "安装目录：$prefix"
@@ -155,7 +166,9 @@ function install_pkg {
 		pwd
 		ls -l $prefix
 		return 0
-	else
+	else	
+		swapoff /swapfile			#删除交换分区  
+		rm -f /swapfile
 		echo "编译或安装出错"
 		exit 1
 	fi
@@ -219,10 +232,6 @@ function install_mysql {
 #		$*: cmake配置
 yum -y install bison   ncurses-devel cmake libaio-devel 	#安装依赖
 
-dd if=/dev/zero of=/swapfile bs=1M count=2048       	#创建交换分区
-swapon /swapfile
-
-
 local pkg=$1
 local user=$2
 shift
@@ -241,10 +250,7 @@ cd $pkgdir
 cmake $cmake
 
 if [ "$?" -eq 0 ];then
-	install_pkg  $pkgdir null		#进入到软件包目录
-	
-	swapoff /swapfile			#删除交换分区  
-	rm -f /swapfile
+	install_pkg  $pkgdir null		#进入到软件包目录	
 	return 0		
 else
 	echo "cmake 发生错误"
