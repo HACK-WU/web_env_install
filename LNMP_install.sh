@@ -9,7 +9,7 @@
 # 适用的软件版本：
 #	nginx:  nginx-1.22.0.tar.gz
 #	apache:	httpd-2.4.54.tar.gz
-#   mysql:  mysql-5.7.39.tar.gz | mysql-boost-5.7.39.tar.gz
+#   mysql:  mysql-boost-5.7.39.tar.gz(推荐) | mysql-5.7.39.tar.gz
 #	php:    php-7.4.30.tar.gz
 #	
 #	说明：
@@ -31,14 +31,14 @@
 set -u
 #set -e
 
-NGINX_TAG=ON					#是否开启安装功能，ON为开启，OFF为不开启
-Apache_TAG=OFF
 MYSQL_TAG=ON
+NGINX_TAG=OFF					#是否开启安装功能，ON为开启，OFF为不开启
+Apache_TAG=ON
 PHP_TAG=ON
 
-NGINX_pkg=/root/nginx-1.22.0.tar.gz						#nginx的源码包包位置，绝对路径
-Apache_pkg=												#apache源码包
-MYSQL_pkg=/root/mysql-boost-5.7.39.tar.gz				#mysql的源码包位置，绝对路径
+NGINX_pkg=										#nginx的源码包包位置，绝对路径
+Apache_pkg=/root/httpd-2.4.54.tar.gz												#apache源码包
+MYSQL_pkg=/root/mysql-5.7.39.tar.gz				#mysql的源码包位置，绝对路径
 PHP_pkg=/root/php-7.4.30.tar.gz							#php源码包位置
 
 ##############################   软件安装配置     #############################################
@@ -49,6 +49,7 @@ NGINX_configure="--prefix=$NGINX_basedir  --user=$NGINX_user --group=$NGINX_user
 
 MYSQL_user=mysql						#运行软件的用户
 MYSQL_basedir=/usr/local/mysql			#mysql的安装位置
+MYSQL_boost=" -DDOWNLOAD_BOOST=1"
 MYSQL_cmake=" -DCMAKE_INSTALL_PREFIX=$MYSQL_basedir \
 -DMYSQL_DATADIR=$MYSQL_basedir/data \
 -DMYSQ_TCP_PORT=3306 \
@@ -62,11 +63,11 @@ MYSQL_cmake=" -DCMAKE_INSTALL_PREFIX=$MYSQL_basedir \
 -DEXTRA_CHARSETS=all \
 -DDEFAULT_CHARSET=utf8mb4 \
 -DDEFAULT_COLLATION=utf8mb4_general_ci \
--DWITH_SSL=system \
--DWITH_BOOST=$MYSQL_basedir/boost \
+-DWITH_SSL=system -DWITH_BOOST=$MYSQL_basedir/boost \
 -DDOWNLOAD_BOOST=1
 "
- 
+
+#################
 Apache_user=httpd
 Apache_basedir=/usr/local/apache2
 Apache_configure="--prefix=$Apache_basedir \
@@ -80,6 +81,8 @@ Apache_configure="--prefix=$Apache_basedir \
 --with-apr=/usr/bin/apr-1-config \
 --with-apr-util=/usr/bin/apu-1-config
 "
+
+################
 PHP_user=www						   #运行软件的用户
 PHP_basedir=/usr/local/php			   #软件安装位置:
 PHP_apache_conf=" --with-apxs2=$Apache_basedir/bin/apxs --enable-opcache"
@@ -95,7 +98,7 @@ PHP_configure="--prefix=$PHP_basedir --with-config-file-path=$PHP_basedir/etc/ \
 --enable-ftp --enable-maintainer-zts  --with-xmlrpc  --enable-pcntl \
 --enable-inline-optimization  --enable-shmop --enable-mbregex  
 "
-[ "$Apache_TAG" == "ON"  ]&& $PHP_configure="$PHP_configure $PHP_apache_conf"
+[ "$Apache_TAG" == "ON"  ]&& PHP_configure="$PHP_configure $PHP_apache_conf"
 
 ####################################################################################3
  yum install -y epel-release.noarch
@@ -181,17 +184,6 @@ function install_pkg {
 	fi
 
 }
-
-######################  NGINX ################################
-function nginx_main {
-	yum -y install pcre-devel zlib-devel  #安装nginx依赖
-	local pkg=$NGINX_pkg
-	local user=$NGINX_user
-	local configure=$NGINX_configure
-	install_pkg  $(tar_xf $pkg $user )  $configure
-}
-
-[ "$NGINX_TAG" == "ON"  ] && nginx_main
 
 #######################Mysql ###########################
 function init_mysql {    #mysql初始化
@@ -286,68 +278,16 @@ function mysql_main {
 
 [ "$MYSQL_TAG" == "ON"  ] && mysql_main
 
-################################# php ##################################
- function init_php {
-#   参数
-#       $1:  安装路径
-#       $2:  解压后的软件包位置
-
-    local prefix=$1
-    local pkgdir=$2
-    cp $prefix/etc/php-fpm.conf.default $prefix/etc/php-fpm.conf
-    cp $prefix/etc/php-fpm.d/www.conf.default $prefix/etc/php-fpm.d/www.conf
-    cp $pkgdir/php.ini-development $prefix/etc/php.ini
-    ln -s $prefix/bin/* /usr/local/bin/
-    ln -s $prefix/sbin/* /usr/local/sbin/
-    cp $pkgdir/sapi/fpm/init.d.php-fpm    /etc/init.d/php-fpm
-	chmod a+x /etc/init.d/php-fpm	
+######################  NGINX ################################
+function nginx_main {
+	yum -y install pcre-devel zlib-devel  #安装nginx依赖
+	local pkg=$NGINX_pkg
+	local user=$NGINX_user
+	local configure=$NGINX_configure
+	install_pkg  $(tar_xf $pkg $user )  $configure
 }
 
-function conf_nginx {
-	local conf=$1/conf/nginx.conf
-    local num=$( grep -n   "pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000" $conf | cut -d ":" -f 1   )
-    local start=$((num+2 ))
-    local  end=$((num+8))
-	echo $start
-	echo $end
-    sed -i  "$start,$end s/#//g" $conf &>/dev/null
-
-    let end=end-1
-    sed  -i "$end s/fastcgi_params/fastcgi.conf/g" $conf  &>/dev/null
-echo "<?php
-		phpinfo();
-?>
-" > $1/html/index.php
-
-}
-
-function install_php {
-#  参数：
-#	$1:  软件包绝对路径
-#	$2： 运行软件的用户
-#	$*:	 编译配置
-yum -y install libxml2-devel libjpeg-devel libpng-devel freetype-devel curl-devel openssl-devel sqlite-devel oniguruma oniguruma-devel
-
-   local pkg=$1
-   local user=$2
-   shift
-   shift
-   local configure=$*
-   install_pkg $(tar_xf  $pkg $user ) $configure
-
-}
-
-function php_main {
-	local pkg=$PHP_pkg
-	local user=$PHP_user
-	local basedir=$PHP_basedir
-	local configure=$PHP_configure
-	install_php $pkg  $user  $configure
-	init_php $basedir  $PKG_DIR
-	conf_nginx $NGINX_basedir 
-}
-
-[ "$PHP_TAG" == "ON"  ] && php_main
+[ "$NGINX_TAG" == "ON"  ] && nginx_main
 
 #####################  apache   #########################
 function init_httpd {
@@ -415,4 +355,86 @@ function apache_main {
 }
 
 [ "$Apache_TAG" == "ON"  ] && apache_main
+
+
+################################# php ##################################
+ function init_php {
+#   参数
+#       $1:  安装路径
+#       $2:  解压后的软件包位置
+
+    local prefix=$1
+    local pkgdir=$2
+    cp $prefix/etc/php-fpm.conf.default $prefix/etc/php-fpm.conf
+    cp $prefix/etc/php-fpm.d/www.conf.default $prefix/etc/php-fpm.d/www.conf
+    cp $pkgdir/php.ini-development $prefix/etc/php.ini
+    ln -s $prefix/bin/* /usr/local/bin/
+    ln -s $prefix/sbin/* /usr/local/sbin/
+    cp $pkgdir/sapi/fpm/init.d.php-fpm    /etc/init.d/php-fpm
+	chmod a+x /etc/init.d/php-fpm	
+}
+
+function conf_web {
+	local web_basedir=$1
+	function conf_nginx {
+		local conf=$1/conf/nginx.conf	
+	    local num=$( grep -n   "pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000" $conf | cut -d ":" -f 1   )
+	    local start=$((num+2 ))
+	    local  end=$((num+8))
+		echo $start
+		echo $end
+	    sed -i  "$start,$end s/#//g" $conf &>/dev/null
+	
+	    let end=end-1
+	    sed  -i "$end s/fastcgi_params/fastcgi.conf/g" $conf  &>/dev/null
+	echo "<?php
+			phpinfo();
+	?>
+	" > $1/html/index.php
+	}
+
+	function conf_httpd {
+		local conf=$1
+	echo "<?php
+			phpinfo();
+	?>
+	" > $1/htdocs/index.php
+	}
+
+	[ "$NGINX_TAG" == "ON"  ]&& conf_nginx $web_basedir 
+	[ "$Apache_TAG" == "ON" ]&& conf_httpd $web_basedir
+	
+}
+
+
+
+function install_php {
+#  参数：
+#	$1:  软件包绝对路径
+#	$2： 运行软件的用户
+#	$*:	 编译配置
+yum -y install libxml2-devel libjpeg-devel libpng-devel freetype-devel curl-devel openssl-devel sqlite-devel oniguruma oniguruma-devel
+
+   local pkg=$1
+   local user=$2
+   shift
+   shift
+   local configure=$*
+   install_pkg $(tar_xf  $pkg $user ) $configure
+
+}
+
+function php_main {
+	local pkg=$PHP_pkg
+	local user=$PHP_user
+	local basedir=$PHP_basedir
+	local configure=$PHP_configure
+	install_php $pkg  $user  $configure
+	init_php $basedir  $PKG_DIR
+	[ "$NGINX_TAG" == "ON"  ]&& conf_web $NGINX_basedir 
+	[ "$Apache_TAG" == "ON" ]&& conf_web $Apache_basedir
+}
+
+[ "$PHP_TAG" == "ON"  ] && php_main
+
 [ "$MYSQL_TAG" == "ON" ] && cat $tmpfile
