@@ -226,7 +226,7 @@ function init_mysql {    #mysql初始化
 				就可以登录，登录之后，更改mysql.user表改密码。" >> $tmpfile
  
 		 service mysqld stop
-		 echo "export PATH=$PATH:$prefix/bin" >> /etc/profile
+		 echo "export PATH=\$PATH:$prefix/bin" >> /etc/profile
 		 echo -e  "\033[33m请执行source /etc/profile 命令\033[0m"
 	else
 		 echo "数据库启动失败"
